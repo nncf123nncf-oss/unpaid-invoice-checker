@@ -100,6 +100,8 @@ const DEP = '日付,振込名義,金額\n2026/09/10,ホクトショウジ,"77,00
   await setv('#invPaste', '請求日,取引先,請求額,支払期日\n2026/08/10,本物の取引先,5000,2026/09/10'); await sleep(100);
   ok((await ev('document.getElementById("depPaste").value')) === '' && (await ev('document.getElementById("baseDate").value')) !== '2026-10-12' && !(await vis('#res')), 'W1 サンプルのあとに実データを貼ると、もう一方の欄・基準日・結果を外す');
   await click('#sample'); await sleep(200);
+  await ev('(()=>{const e=document.getElementById("invPaste");e.dispatchEvent(new InputEvent("beforeinput",{bubbles:true,cancelable:true,inputType:"insertFromPaste"}));e.value=e.value+"X";e.dispatchEvent(new Event("input",{bubbles:true}))})()'); await sleep(100);
+  ok((await ev('document.getElementById("invPaste").value')) === 'X' && (await ev('document.getElementById("depPaste").value')) === '', 'R2-5 サンプルの欄に貼ると、入力が入る前に両方の欄を空にする（サンプルの行が混ざらない）');
   await click('#clear'); await sleep(50);
   // 見出しなしで、出金・入金・残高の並び（出金を入金と取り違えない）
   await setv('#invPaste', '請求日,取引先,請求額,支払期日\n2026/09/01,A社,3000,2026/09/30'); await setv('#depPaste', '2026/09/10,引落 ｶﾞｽ,3000,,897000\n2026/09/11,振込 ｲｸﾞ,,50000,947000'); await click('#go'); await sleep(200);

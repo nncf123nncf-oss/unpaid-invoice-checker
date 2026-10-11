@@ -141,7 +141,7 @@
           <label class="filebtn" for="depFile">入金明細のCSVファイルを選ぶ</label>
           <input type="file" id="depFile" class="vh">
         </div>
-        <p class="hint">出金の行は数えません。</p>
+        <p class="hint">マイナス・空欄・0円の行は入金に数えません。</p>
       </section>
 
       <section class="card" aria-labelledby="hSet">
@@ -238,6 +238,8 @@
           <li>まとめて1回で振り込まれた入金、一部だけの入金、源泉徴収などで差し引かれた入金は、自動では結びつきません（入金が見当たらない側に出ます）。</li>
           <li>銀行の振込名義は、請求の取引先名と違う書き方になることがあります。金額の一致を主に、名義は補助に使っています。</li>
           <li>請求日より前の入金は、その請求の入金として使いません。入金明細の期間が短いと、入っていても見当たらないことがあります。</li>
+          <li>入金と出金の区分が別の列にある明細では、区分の列は見ていません。金額がプラスの行は入金として読みます。</li>
+          <li>差の許容（手数料の引かれ分）は、請求額が許容額の10倍以上のときだけ使います（既定では請求額が11,000円以上）。それより小さい請求は、手数料が引かれた入金が「見当たらない」側に出ることがあります。</li>
           <li>ここで言う「見当たらない」は、貼られた明細との照合の結果です。入っていないと断定するものではありません。</li>
         </ul>
       </div>
@@ -368,10 +370,12 @@ var UIC = (function () {
       c.date = p([/入金日|取引日/, /日付|年月日/, /^日$/, /日/]);
       c.amt = p([/入金金額|入金額/, /お?預り金額|お?預入金額|受取金額/, /入金(?!日)|預り|預入|受取/, /入出金/, /金額|amount/i]);
       c.name = p([/振込名義|依頼人|名義/, /入金先|お取引内容|取引内容/, /摘要|内容/]);
+      // 見出しに入金を示す語がなく、選ばれた金額の列が出金側なら、入金の列として使わない
+      if (c.amt >= 0 && /出金|支払|引出|払出|支出/.test(b.hn[c.amt]) && !/入出金|入金|預/.test(b.hn[c.amt])) { used.splice(used.indexOf(c.amt), 1); c.amt = -1; c.ambiguousAmt = true; }
     }
     if (c.date < 0) { var bd = 0; for (j = 0; j < b.ncol; j++) { if (used.indexOf(j) >= 0) continue; var rd = b.ratio(j, looksDate); if (rd > bd) { bd = rd; c.date = j; } } if (c.date >= 0) used.push(c.date); }
     // 数字の列が複数あるとき（出金・入金・残高など）は、出金を入金と取り違えないよう、自動では選ばない
-    if (c.amt < 0) { var am = []; for (j = 0; j < b.ncol; j++) { if (used.indexOf(j) >= 0) continue; if (b.ratio(j, looksAmount) >= 0.5) am.push(j); } if (am.length === 1) { c.amt = am[0]; used.push(am[0]); } else if (am.length > 1) c.ambiguousAmt = true; }
+    if (c.amt < 0 && !c.ambiguousAmt) { var am = []; for (j = 0; j < b.ncol; j++) { if (used.indexOf(j) >= 0) continue; if (b.ratio(j, looksAmount) >= 0.5) am.push(j); } if (am.length === 1) { c.amt = am[0]; used.push(am[0]); } else if (am.length > 1) c.ambiguousAmt = true; }
     if (c.name < 0) { c.name = textCol(b, used); }
     return { header: b.header, headerRow: b.headerRow, ncol: b.ncol, width: b.width, cols: c };
   }
@@ -798,6 +802,7 @@ var UIC = (function () {
     });
   }
   // サンプルの入力が残っているときは、実データと混ざらないよう、両方の欄と基準日を戻す
+  function dropSampleAll() { sampled = false; $('invPaste').value = ''; $('depPaste').value = ''; $('baseDate').value = todayStr(); reset(); updateBaseNote(); setStatus(['サンプルの入力を外しました。請求の一覧と入金明細の両方を入れて「照合する」を押してください。'], false); }
   function dropSample() { if (!sampled) return false; sampled = false; $('invPaste').value = ''; $('depPaste').value = ''; $('baseDate').value = todayStr(); updateBaseNote(); return true; }
   function onFile(inputId, areaId, label) {
     $(inputId).addEventListener('change', function () {
@@ -820,6 +825,8 @@ var UIC = (function () {
   $('sample').addEventListener('click', function () { $('invPaste').value = U.sampleInvoice(); $('depPaste').value = U.sampleDeposit(); $('baseDate').value = SAMPLE_BASE; sampled = true; loadAll(); });
   $('clear').addEventListener('click', function () { $('invPaste').value = ''; $('depPaste').value = ''; $('invFile').value = ''; $('depFile').value = ''; sampled = false; $('baseDate').value = todayStr(); reset(); setStatus(null); updateBaseNote(); });
   ['invPaste', 'depPaste'].forEach(function (id) {
+    // サンプルが入っている欄に貼る・打つときは、入力が入る前に両方の欄を空にする（サンプルの行が混ざらない）
+    $(id).addEventListener('beforeinput', function () { if (sampled) dropSampleAll(); });
     $(id).addEventListener('input', function () {
       if (sampled) { var other = id === 'invPaste' ? 'depPaste' : 'invPaste'; sampled = false; $(other).value = ''; $('baseDate').value = todayStr(); reset(); updateBaseNote(); setStatus(['サンプルの入力を外しました。もう一方も入れて「照合する」を押してください。'], false); return; }
       if (st.loaded) { stale = true; $('staleNote').hidden = false; }
