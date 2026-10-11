@@ -597,7 +597,8 @@ var UIC = (function () {
       '2026/09/30,みどり企画,,資料作成,"66,000",2026/10/31',
       '2026/09/05,星野写真館,ホシノシャシンカン,撮影補助,"22,000",2026/10/05',
       '2026/09/15,川辺ヨガ教室,,動画編集,"44,000",2026/10/15',
-      '2026/09/20,森のカフェ,,メニュー制作,"44,000",2026/10/20'].join('\n');
+      '2026/09/20,森のカフェ,,メニュー制作,"44,000",2026/10/20',
+      '9/22,森山電機,,電気工事,"12,000",2026/10/22'].join('\n');
   }
   function sampleDeposit() {
     return ['日付,振込名義,入金金額',
@@ -607,8 +608,7 @@ var UIC = (function () {
       '2026/10/03,サービス利用料,-3300',
       '2026/10/04,ホシノシャシンカン,"22,000"',
       '2026/10/06,サンプル ハナコ,"44,000"',
-      '2026/10/09,ヒナタコウボウ,"54,780"',
-      '10/1,サンプル タロウ,"12,000"'].join('\n');
+      '2026/10/09,ヒナタコウボウ,"54,780"'].join('\n');
   }
   return { parseTable: parseTable, parseDate: parseDate, parseAmount: parseAmount, looksDate: looksDate, looksAmount: looksAmount, detectInvoice: detectInvoice, detectDeposit: detectDeposit, buildInvoices: buildInvoices, buildDeposits: buildDeposits, match: match, classify: classify, makeMessage: makeMessage, stage: stage, copyListText: copyListText, yen: yen, fmtJa: fmtJa, fmtSlash: fmtSlash, fmtShort: fmtShort, sampleInvoice: sampleInvoice, sampleDeposit: sampleDeposit, nameKey: nameKey, MAX_INV: MAX_INV, MAX_DEP: MAX_DEP, DAY: DAY };
 })();

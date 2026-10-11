@@ -10,6 +10,7 @@ const wf = (name, buf) => { const p = path.join(TMP, name); fs.writeFileSync(p, 
 // Shift_JIS のCSVは python で作る（node は標準で SJIS をエンコードできない）
 function sjis(name, text) { const p = path.join(TMP, name), src = path.join(TMP, name + '.txt'); fs.writeFileSync(src, text, 'utf8'); cp.spawnSync('python', ['-c', 'import sys;open(sys.argv[2],"wb").write(open(sys.argv[1],encoding="utf-8").read().encode("cp932"))', src, p]); return p; }
 const INV = '請求日,取引先,請求額,支払期日\n2026/08/10,山の手商店会,"88,000",2026/09/10\n';
+const ev_dep_plus_bad = '日付,振込名義,入金金額\n2026/09/29,ミナトデザインシツ,110000\n10/1,サンプル タロウ,12000';
 const DEP = '日付,振込名義,金額\n2026/09/10,ホクトショウジ,"77,000"\n';
 (async () => {
   const chrome = cp.spawn(CHROME, ['--headless=new', '--remote-debugging-port=9371', '--user-data-dir=' + path.join(TMP, 'prof'), '--no-first-run', '--disable-gpu', 'about:blank'], { stdio: 'ignore' });
@@ -49,14 +50,14 @@ const DEP = '日付,振込名義,金額\n2026/09/10,ホクトショウジ,"77,00
   await setv('#invPaste', INV); await click('#go'); ok((await txt('#status')).includes('入金明細が空'), '入金だけ空');
   // サンプル
   await click('#sample'); await sleep(200);
-  let s = await txt('#status'); ok(/請求 8件を読み込み・読み取れなかった行 0件/.test(s) && /入金明細 6件を読み込み・入金ではない行 1件/.test(s) && /読み取れなかった行 1件/.test(s), 'ステータス ' + s);
+  let s = await txt('#status'); ok(/請求 8件を読み込み・読み取れなかった行 1件/.test(s) && /入金明細 6件を読み込み・入金ではない行 1件/.test(s) && /読み取れなかった行 0件/.test(s), 'ステータス ' + s);
   ok(await ev('document.getElementById("baseDate").value') === '2026-10-12', 'サンプルは基準日固定');
   ok(await cnt('#lOver .it') === 2 && await cnt('#lRev .it') === 3 && await cnt('#lSoon .it') === 1 && await cnt('#lPaid .it') === 2, '区分の件数 2/3/1/2');
   ok((await txt('#bOverN')) === '2件' && (await txt('#bOverA')) === '121,000円' && (await txt('#bSoonN')) === '1件' && (await txt('#bSoonA')) === '66,000円' && (await txt('#bRevN')) === '3件' && (await txt('#bPaidN')) === '2件', '帯の数値');
   ok((await ev('[...document.querySelectorAll("#lOver .nm")].map(e=>e.textContent).join("|")')) === '山の手商店会|青空ベーカリー', '超過の並び');
   ok((await txt('#lOver .it .bdg')).includes('32日超過'), '超過日数 32日'); ok((await txt('#lRev .it:first-child .note')).includes('差 220円'), '差額の注記');
   ok((await txt('#lRev')).includes('同じ金額の請求が2件あり、入金は1件です') && (await txt('#lRev')).includes('候補の入金: 10/6'), '同額の要確認と候補の入金');
-  ok((await txt('#badSum')).includes('1件') && (await txt('#badDep')).includes('年が書かれていない'), '読み取れなかった行');
+  ok((await txt('#badSum')).includes('1件') && (await txt('#badInv')).includes('年が書かれていない') && !(await vis('#depBadNote')), '読み取れなかった行（請求側1件。入金側は0件なので注意文は出ない）');
   ok((await txt('#freeSum')).includes('2件') && (await txt('#lFree')).includes('請求日より前の入金'), '結びつかなかった入金');
   ok(!(await txt('#lSoon')).includes('連絡文をつくる') && (await txt('#lSoon')).includes('まだ期日前です'), '期日前は連絡文を作らない');
   ok(await ev('document.querySelector("#lOver .it").classList.contains("hot")'), '期日超過の行は強調');
@@ -92,7 +93,8 @@ const DEP = '日付,振込名義,金額\n2026/09/10,ホクトショウジ,"77,00
   await click('#sample'); await sleep(200);
   // レビュー①の指摘への対応
   ok(await vis('#baseNote') && (await txt('#baseNote')).includes('サンプルの基準日'), 'W1 サンプルの基準日を明示');
-  ok(await vis('#depBadNote') && (await txt('#depBadNote')).includes('入金明細に読み取れなかった行が1件'), 'W2 入金明細の読み取れなかった行を結果の近くに出す');
+  await click('#clear'); await setv('#invPaste', INV); await setv('#depPaste', ev_dep_plus_bad); await click('#go'); await sleep(200);
+  ok(await vis('#depBadNote') && (await txt('#depBadNote')).includes('入金明細に読み取れなかった行が1件'), 'W2 入金明細の読み取れなかった行を結果の近くに出す'); await click('#sample'); await sleep(200);
   await btn('#lOver .it:first-child', '入金済みにする'); await sleep(100); await setv('#tol', '0'); await sleep(100);
   ok((await txt('#status')).includes('自分で付けた変更（入金済みなど）はリセットしました'), 'W3 手動操作をリセットしたら知らせる'); await setv('#tol', '1100'); await sleep(100);
   await setv('#invPaste', '請求日,取引先,請求額,支払期日\n2026/08/10,本物の取引先,5000,2026/09/10'); await sleep(100);

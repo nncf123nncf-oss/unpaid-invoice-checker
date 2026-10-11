@@ -30,8 +30,8 @@ const H = '請求日,取引先,請求額,支払期日\n', DH = '日付,振込名
 const s1 = go(X.sampleInvoice(), X.sampleDeposit());
 eq(s1.di.header, true, 'S1 請求 見出しあり'); eq(J(s1.di.cols), J({ date: 0, due: 5, name: 1, amt: 4, item: 3, payer: 2 }), 'S1 請求の列');
 eq(J(s1.dd.cols), J({ date: 0, name: 1, amt: 2 }), 'S1 入金の列');
-eq(s1.bi.ok.length, 8, 'S1 請求8件'); eq(s1.bi.bad.length, 0, 'S1 請求の読めない行なし');
-eq(s1.bd.ok.length, 6, 'S1 入金6件'); eq(s1.bd.notDep, 1, 'S1 入金ではない行1件'); eq(s1.bd.bad.map(x => x.reason), ['日付: 年が書かれていない'], 'S1 入金の読めない行');
+eq(s1.bi.ok.length, 8, 'S1 請求8件'); eq(s1.bi.bad.map(x => x.reason), ['請求日: 年が書かれていない'], 'S1 請求の読めない行1件（年のない日付）');
+eq(s1.bd.ok.length, 6, 'S1 入金6件'); eq(s1.bd.notDep, 1, 'S1 入金ではない行1件'); eq(s1.bd.bad.length, 0, 'S1 入金の読めない行なし');
 eq(names(s1.cl.over), ['山の手商店会', '青空ベーカリー'], 'S1 期日超過の順'); eq(s1.cl.over.map(x => x.days), [32, 12], 'S1 超過日数'); eq(s1.cl.overSum, 121000, 'S1 超過の合計');
 eq(names(s1.cl.rev), ['ひなた工房', '川辺ヨガ教室', '森のカフェ'], 'S1 要確認'); eq(s1.cl.rev.map(x => x.r.st), ['diff', 'review', 'review'], 'S1 要確認の種類');
 eq(s1.cl.rev[0].r.diff, 220, 'S1 差額220'); eq([s1.cl.rev[1].r.k, s1.cl.rev[1].r.m], [2, 1], 'S1 同額2件に入金1件');

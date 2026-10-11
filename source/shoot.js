@@ -32,12 +32,12 @@ const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'uic-shoot-'));
   const SENDER = 'デザイン工房 みなと';
   // Card1: デスクトップ1000px・2カラム・サンプルで照合した直後（連絡文はまだ開かない）
   await open(1000, 900, 2, false); await setv('#sender', SENDER); await ev('document.getElementById("sample").click()'); await ev('document.getElementById("invPaste").scrollTop=0;document.getElementById("depPaste").scrollTop=0'); await sleep(300);
-  await shot('01-desktop-result-' + DATE + '.png', top('h1') + '-12', `Math.max(${bottom('#lOver')},${bottom('.col-in .card:nth-of-type(2)')})+12`, 1000);
+  await shot('01-desktop-result-' + DATE + '.png', top('h1') + '-12', `Math.max(${bottom('#lOver')},${bottom('.col-in .card:nth-of-type(2)')})+4`, 1000);
   await shot('source-desktop-full.png', '0', 'document.documentElement.scrollHeight', 1000);
-  // Card2: 375px・青空ベーカリー（12日超過）の行を開いて、LINEの連絡文を出した状態。注意文から「文面をコピー」まで
+  // Card2: 375px・青空ベーカリー（12日超過）の行を開いて、LINEの連絡文を出した状態。「LINEの文面」の見出しから文面の枠の下まで（注意文は入れない。375px・DPR2の画像で占有率60%を満たす高さに収めるため）
   await open(375, 900, 2, true); await setv('#sender', SENDER); await ev('document.getElementById("sample").click()'); await sleep(300);
   await ev('[...document.querySelectorAll("#lOver .it:nth-child(2) button")].find(b=>b.textContent.trim()==="連絡文をつくる").click()'); await sleep(300);
-  await shot('02-mobile375-message-' + DATE + '.png', top('#lOver .it:nth-child(2) .panel .alert') + '-2', bottom('#lOver .it:nth-child(2) .panel .copyrow') + '+4', 375);
+  await shot('02-mobile375-message-' + DATE + '.png', top('#lOver .it:nth-child(2) .panel .lbl') + '-4', bottom('#lOver .it:nth-child(2) .panel pre.msg') + '+4', 375);
   await shot('source-mobile375-full.png', '0', 'document.documentElement.scrollHeight', 375);
   ws.close(); chrome.kill(); try { fs.rmSync(TMP, { recursive: true, force: true }); } catch (e) { } setTimeout(() => process.exit(0), 300);
 })();
