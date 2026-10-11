@@ -33,7 +33,7 @@
   .card { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px; margin: 0 0 12px; }
   textarea, select, input[type=text], input[type=date] { font: inherit; font-size: 16px; color: var(--ink); background: var(--surface); border: 1px solid var(--line-strong); border-radius: 8px; width: 100%; min-width: 0; }
   input[type=text], input[type=date] { min-height: 44px; padding: 6px 10px; }
-  textarea { height: 120px; padding: 8px 10px; resize: vertical; font-size: 14px; line-height: 1.5; font-family: ui-monospace, "BIZ UDGothic", monospace; }
+  textarea { height: 120px; padding: 8px 10px; resize: vertical; font-size: 16px; line-height: 1.5; font-family: ui-monospace, "BIZ UDGothic", monospace; }
   select { min-height: 44px; padding: 6px 8px; }
   .lb { display: block; font-size: 14px; font-weight: 600; margin: 0 0 4px; color: var(--ink2); }
   button, .filebtn { font: inherit; font-size: 16px; min-height: 44px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; text-align: center; padding: 8px 14px; width: 100%; }
@@ -41,7 +41,8 @@
   .ghost, .filebtn { background: var(--surface); color: var(--accent); border: 1px solid var(--accent); font-weight: 600; }
   button:disabled { opacity: .55; cursor: default; }
   .btns { display: grid; gap: 8px; margin-top: 8px; }
-  .btns2 { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 8px; margin-top: 8px; }
+  .btns2 { display: grid; grid-template-columns: minmax(0,1.3fr) minmax(0,1fr); gap: 8px; margin-top: 8px; }
+  .btns:focus-within .filebtn { outline: 3px solid var(--accent); outline-offset: 2px; }
   .vh { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   .hint { font-size: 13px; color: var(--ink3); margin: 6px 0 0; }
   .status { margin: 10px 0 0; padding: 8px 10px; border-radius: 8px; background: var(--accent-soft); font-size: 14px; overflow-wrap: anywhere; }
@@ -140,16 +141,17 @@
           <label class="filebtn" for="depFile">入金明細のCSVファイルを選ぶ</label>
           <input type="file" id="depFile" class="vh">
         </div>
-        <p class="hint">出金の行は数えません。請求日より前の入金は、その請求の入金として使いません。</p>
+        <p class="hint">出金の行は数えません。</p>
       </section>
 
       <section class="card" aria-labelledby="hSet">
         <h2 id="hSet">設定</h2>
-        <div class="field"><label class="lb" for="baseDate">基準日（この日までに入っていないかを見ます）</label><input type="date" id="baseDate"></div>
+        <div class="field"><label class="lb" for="baseDate">基準日（この日までに入っていないかを見ます）</label><input type="date" id="baseDate"><p class="hint" id="baseNote" hidden></p></div>
         <div class="field"><label class="lb" for="tol">請求額より少ない入金を同じ請求とみなす差（振込手数料の引かれ分）</label>
           <select id="tol"><option value="0">差は認めない</option><option value="1100" selected>1,100円まで</option><option value="2200">2,200円まで</option></select></div>
         <div class="field"><label class="lb" for="sender">連絡文の差出人名（屋号やお名前）</label><input type="text" id="sender" autocomplete="off" placeholder="例: デザイン工房 みなと"></div>
         <div class="field"><label class="lb" for="media">連絡文の媒体</label><select id="media"><option value="line">LINE</option><option value="mail">メール</option></select></div>
+        <p class="hint" id="staleNote" hidden>貼り付けた内容が変わりました。「照合する」を押すと反映されます。</p>
         <div class="btns">
           <button type="button" class="primary" id="go">照合する</button>
         </div>
@@ -197,6 +199,7 @@
           <div class="cell"><div class="k">入金あり</div><div class="v" id="bPaidN"></div></div>
         </div>
         <p class="hint" style="margin:0 0 12px">「期日超過」「期日前」は、貼られた明細の中に入金が見当たらない請求です。</p>
+        <p class="hint" id="depBadNote" style="margin:0 0 12px" hidden></p>
 
         <section class="sec" id="secOver" hidden>
           <div class="sechead"><h2>期日を過ぎて入金が見当たらない</h2><span class="c" id="cOver"></span></div>
@@ -258,7 +261,7 @@ var UIC = (function () {
   function clean(s) { return nk(s).replace(/\s+/g, ' ').trim(); }
   function nameKey(s) { return nk(s).replace(/\s+/g, '').toUpperCase(); }
   // カード番号・口座番号らしい並び（4桁-4桁…、*を含む）を伏せる
-  function mask(s) { return String(s).replace(/[\d*＊]{4}(?:[-\s]?[\d*＊]{4}){1,3}/g, '****'); }
+  function mask(s) { return String(s).replace(/\d{7,}/g, '****').replace(/[\d*＊]{4}(?:[-\s]?[\d*＊]{4}){1,3}/g, '****'); }
 
   function parseTable(text) {
     text = String(text || '').replace(/^﻿/, '').replace(/\r\n?/g, '\n');
@@ -297,10 +300,10 @@ var UIC = (function () {
     if (maxT != null && t > maxT) return { err: '基準日より後の日付' };
     return { t: t, y: y, m: mo };
   }
-  function looksDate(s) { s = nk(s).trim().replace(/\s.*$/, ''); return /^(\d{4}[\/\-.年]\d{1,2}[\/\-.月]\d{1,2}日?|(R|令和)\d{1,2}[\/\-.年]\d{1,2}[\/\-.月]\d{1,2}日?|\d{1,2}[\/\-.]\d{1,2}|(19|20)\d{2}(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01]))$/i.test(s); }
+  function looksDate(s) { s = nk(s).trim().replace(/\s.*$/, '').replace(/\([^)]*\)$/, ''); return /^(\d{4}[\/\-.年]\d{1,2}[\/\-.月]\d{1,2}日?|(R|令和)\d{1,2}[\/\-.年]\d{1,2}[\/\-.月]\d{1,2}日?|\d{1,2}[\/\-.]\d{1,2}|(19|20)\d{2}(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01]))$/i.test(s); }
   // kind: empty / zero / neg / bad / big
   function parseAmount(s) {
-    var v = nk(s).replace(/[円¥\\,\s"]/g, '');
+    var v = nk(s).replace(/[円¥\\,\s"]/g, '').replace(/^\+/, '').replace(/\.0+$/, '');
     if (!v) return { err: '空欄', kind: 'empty' };
     if (/^[-−▲△]/.test(v)) return { err: 'マイナス', kind: 'neg' };
     if (!/^\d+$/.test(v)) return { err: '読めない', kind: 'bad' };
@@ -367,7 +370,8 @@ var UIC = (function () {
       c.name = p([/振込名義|依頼人|名義/, /入金先|お取引内容|取引内容/, /摘要|内容/]);
     }
     if (c.date < 0) { var bd = 0; for (j = 0; j < b.ncol; j++) { if (used.indexOf(j) >= 0) continue; var rd = b.ratio(j, looksDate); if (rd > bd) { bd = rd; c.date = j; } } if (c.date >= 0) used.push(c.date); }
-    if (c.amt < 0) { var ba = 0; for (j = 0; j < b.ncol; j++) { if (used.indexOf(j) >= 0) continue; var ra = b.ratio(j, looksAmount); if (ra > ba) { ba = ra; c.amt = j; } } if (c.amt >= 0) used.push(c.amt); }
+    // 数字の列が複数あるとき（出金・入金・残高など）は、出金を入金と取り違えないよう、自動では選ばない
+    if (c.amt < 0) { var am = []; for (j = 0; j < b.ncol; j++) { if (used.indexOf(j) >= 0) continue; if (b.ratio(j, looksAmount) >= 0.5) am.push(j); } if (am.length === 1) { c.amt = am[0]; used.push(am[0]); } else if (am.length > 1) c.ambiguousAmt = true; }
     if (c.name < 0) { c.name = textCol(b, used); }
     return { header: b.header, headerRow: b.headerRow, ncol: b.ncol, width: b.width, cols: c };
   }
@@ -420,57 +424,68 @@ var UIC = (function () {
   // ---- 照合 ----
   // 戻り値: res[i] = { st: 'paid'|'diff'|'review'|'missing', dep, diff, by, mismatch, why, k, m, cands }
   function match(invs, deps, tol, baseT) {
-    var n = invs.length, res = new Array(n), used = {}, reserved = {}, i, j;
+    var n = invs.length, res = new Array(n), used = {}, reserved = {};
     var elig = function (a, b) { return deps[b].t >= invs[a].t; };
     var order = invs.map(function (_, k) { return k; }).sort(function (a, b) { return invs[a].due - invs[b].due || invs[a].line - invs[b].line; });
-    // 手順1 振込名義
-    order.forEach(function (a) {
-      var v = invs[a]; if (!v.payerKey) return;
-      var ex = -1, df = -1, dfd = Infinity;
+    // 同額の請求のグループ g に、金額の合う入金 cand を割り当てる。
+    // 入金が足りるなら全部「入金あり」、足りなければ誰の分か決められないので全部「要確認」。
+    // 請求日より前の入金しかない請求は、グループの数に入れず rest として返す。
+    function assign(g, cand, by) {
+      var g1 = g.filter(function (a) { return cand.some(function (b) { return elig(a, b); }); });
+      var rest = g.filter(function (a) { return g1.indexOf(a) < 0; });
+      if (!g1.length) return rest;
+      var cE = cand.filter(function (b) { return g1.some(function (a) { return elig(a, b); }); }).sort(function (a, b) { return deps[a].t - deps[b].t; });
+      var k = g1.length, take = {}, asg = {}, ok = true;
+      g1.slice().sort(function (x, y) { return invs[y].t - invs[x].t || x - y; }).forEach(function (a) {
+        var pk = -1;
+        for (var q = 0; q < cE.length; q++) { if (!take[cE[q]] && elig(a, cE[q])) { pk = cE[q]; break; } }
+        if (pk < 0) ok = false; else { take[pk] = 1; asg[a] = pk; }
+      });
+      if (ok) {
+        g1.forEach(function (a) { var v = invs[a]; used[asg[a]] = 1; res[a] = { st: 'paid', dep: asg[a], by: by, mismatch: !!(by === 'amount' && v.payerKey && deps[asg[a]].nameKey.indexOf(v.payerKey) < 0) }; });
+      } else {
+        g1.forEach(function (a) {
+          var ca = cE.filter(function (b) { return elig(a, b); });
+          res[a] = { st: 'review', why: 'same', k: k, m: cE.length, cands: ca };
+          ca.forEach(function (b) { reserved[b] = 1; });
+        });
+      }
+      return rest;
+    }
+    // 手順1 振込名義（同じ名義・同じ金額の請求も、グループとして数える）
+    var pg = {};
+    order.forEach(function (a) { var v = invs[a]; if (!v.payerKey) return; var key = v.payerKey + '\u0001' + v.amount; (pg[key] = pg[key] || []).push(a); });
+    Object.keys(pg).forEach(function (key) {
+      var g = pg[key], v0 = invs[g[0]], cand = [];
+      deps.forEach(function (d, b) { if (!used[b] && !reserved[b] && d.amount === v0.amount && d.nameKey.indexOf(v0.payerKey) >= 0) cand.push(b); });
+      assign(g, cand, 'name');
+    });
+    // 手順1の続き 振込名義が合い、金額が差の許容内（請求額より少ない）
+    if (tol > 0) order.forEach(function (a) {
+      var v = invs[a]; if (res[a] || !v.payerKey) return;
+      var df = -1, dfd = Infinity;
       for (var b = 0; b < deps.length; b++) {
-        if (used[b] || !elig(a, b) || deps[b].nameKey.indexOf(v.payerKey) < 0) continue;
-        if (deps[b].amount === v.amount) { if (ex < 0 || deps[b].t < deps[ex].t) ex = b; }
-        else if (tol > 0 && deps[b].amount < v.amount && v.amount - deps[b].amount <= tol) {
+        if (used[b] || reserved[b] || !elig(a, b) || deps[b].nameKey.indexOf(v.payerKey) < 0) continue;
+        if (deps[b].amount < v.amount && v.amount - deps[b].amount <= tol) {
           var dd = v.amount - deps[b].amount;
           if (dd < dfd || (dd === dfd && deps[b].t < deps[df].t)) { df = b; dfd = dd; }
         }
       }
-      if (ex >= 0) { used[ex] = 1; res[a] = { st: 'paid', dep: ex, by: 'name' }; }
-      else if (df >= 0) { used[df] = 1; res[a] = { st: 'diff', dep: df, diff: dfd, by: 'name' }; }
+      if (df >= 0) { used[df] = 1; res[a] = { st: 'diff', dep: df, diff: dfd, by: 'name' }; }
     });
     // 手順2 金額（請求額ごとのグループ）
     var groups = {}, left = [];
     order.forEach(function (a) { if (res[a]) return; (groups[invs[a].amount] = groups[invs[a].amount] || []).push(a); });
     Object.keys(groups).forEach(function (key) {
-      var g = groups[key], amt = +key, k = g.length;
-      var minT = Math.min.apply(null, g.map(function (a) { return invs[a].t; }));
-      var cand = [];
-      deps.forEach(function (d, b) { if (!used[b] && d.amount === amt && d.t >= minT) cand.push(b); });
-      cand.sort(function (a, b) { return deps[a].t - deps[b].t; });
-      if (!cand.length) { g.forEach(function (a) { left.push(a); }); return; }
-      var gs = g.slice().sort(function (x, y) { return invs[y].t - invs[x].t || x - y; });
-      var take = {}, asg = {}, ok = true;
-      gs.forEach(function (a) {
-        var pk = -1;
-        for (var q = 0; q < cand.length; q++) { if (!take[cand[q]] && elig(a, cand[q])) { pk = cand[q]; break; } }
-        if (pk < 0) ok = false; else { take[pk] = 1; asg[a] = pk; }
-      });
-      if (ok) {
-        g.forEach(function (a) { used[asg[a]] = 1; var v = invs[a]; res[a] = { st: 'paid', dep: asg[a], by: 'amount', mismatch: !!(v.payerKey && deps[asg[a]].nameKey.indexOf(v.payerKey) < 0) }; });
-      } else {
-        g.forEach(function (a) {
-          var ca = cand.filter(function (b) { return elig(a, b); });
-          if (!ca.length) { left.push(a); return; }
-          res[a] = { st: 'review', why: 'same', k: k, m: cand.length, cands: ca };
-          ca.forEach(function (b) { reserved[b] = 1; });
-        });
-      }
+      var g = groups[key], amt = +key, cand = [];
+      deps.forEach(function (d, b) { if (!used[b] && !reserved[b] && d.amount === amt) cand.push(b); });
+      assign(g, cand, 'amount').forEach(function (a) { left.push(a); });
     });
-    // 手順3 差額の許容
+    // 手順3 差の許容（名義を見ないので、請求額が許容額の10倍以上のときだけ使う）
     var cm = {}, cnt = {};
     left.forEach(function (a) {
       var v = invs[a], l = [];
-      if (tol > 0) deps.forEach(function (d, b) { if (used[b] || reserved[b] || d.t < v.t) return; if (d.amount < v.amount && v.amount - d.amount <= tol) l.push(b); });
+      if (tol > 0 && v.amount >= tol * 10) deps.forEach(function (d, b) { if (used[b] || reserved[b] || d.t < v.t) return; if (d.amount < v.amount && v.amount - d.amount <= tol) l.push(b); });
       cm[a] = l; l.forEach(function (b) { cnt[b] = (cnt[b] || 0) + 1; });
     });
     left.forEach(function (a) {
@@ -483,18 +498,30 @@ var UIC = (function () {
     var free = [];
     deps.forEach(function (d, b) {
       if (used[b] || reserved[b]) return;
-      var early = invs.some(function (v) { return v.amount === d.amount && v.t > d.t; });
-      free.push({ dep: b, reason: early ? '請求日より前の入金' : '金額の合う請求がない' });
+      var reason = invs.some(function (v) { return v.amount === d.amount && v.t > d.t; }) ? '請求日より前の入金'
+        : invs.some(function (v) { return v.amount === d.amount; }) ? '同じ金額の請求は、ほかの入金に結びついています' : '金額の合う請求がない';
+      free.push({ dep: b, reason: reason });
     });
     return { res: res, free: free };
   }
-  // 手動操作（manual[i] = 'paid' | 'missing'）と基準日を反映して、画面用の区分にする
+  // 手動操作（manual[i] = 'paid' | 'missing'）と基準日を反映して、画面用の区分にする。
+  // 要確認の行を「入金済み」にしたら、その行の候補の入金1件は、ほかの行の候補から外す（候補がなくなった行は、見当たらない側へ）
   function classify(invs, deps, mr, manual, baseT) {
+    var consumed = {};
+    invs.forEach(function (v, i) {
+      if (!(manual && manual[i] === 'paid')) return;
+      var r = mr.res[i];
+      if (r.dep != null) consumed[r.dep] = 1;
+      else if (r.cands && r.cands.length) { var cs = r.cands.slice().sort(function (a, b) { return deps[a].t - deps[b].t; }); consumed[cs[0]] = 1; }
+    });
     var items = invs.map(function (v, i) {
-      var r = mr.res[i], man = manual && manual[i], st = r.st, byMan = false;
+      var r = mr.res[i], man = manual && manual[i], st = r.st, byMan = false, lost = false;
+      var cands = r.cands ? r.cands.filter(function (b) { return !consumed[b]; }) : [];
       if (man === 'paid') { st = 'paid'; byMan = true; }
       else if (man === 'missing' && (st === 'review' || st === 'diff')) { st = 'missing'; byMan = true; }
-      var it = { i: i, inv: v, r: r, st: st, man: byMan ? man : '' };
+      else if (st === 'review' && !cands.length) { st = 'missing'; lost = true; }
+      else if (st === 'diff' && consumed[r.dep]) { st = 'missing'; lost = true; }
+      var it = { i: i, inv: v, r: r, st: st, man: byMan ? man : '', lost: lost, cands: cands };
       if (st === 'paid') it.bucket = 'paid';
       else if (st === 'review' || st === 'diff') it.bucket = 'review';
       else if (v.due < baseT) { it.bucket = 'overdue'; it.days = Math.round((baseT - v.due) / DAY); }
@@ -534,11 +561,11 @@ var UIC = (function () {
     var where = 'お振込先は請求書に記載のとおりです。';
     var out = { placeholder: ph, stage: st };
     if (line) {
-      var head = st === 3 ? '改めてご連絡いたします。' : '';
+      var head = st === 3 ? '念のためご連絡いたします。' : '';
       out.body = [to, 'お世話になっております。' + me + 'です。', head + what + 'の' + s1, ask.join(''), swap, where, 'よろしくお願いいたします。'].filter(function (x) { return x !== ''; }).join('\n');
     } else {
       out.subject = '【ご確認】' + month + 'ご請求分のお支払いについて';
-      var L = [to, '', 'いつもお世話になっております。' + me + 'です。', '', (st === 3 ? '改めてご連絡いたします。' : '') + month + 'にご請求しました下記の件について、' + s1, ''];
+      var L = [to, '', 'いつもお世話になっております。' + me + 'です。', '', (st === 3 ? '念のためご連絡いたします。' : '') + month + 'にご請求しました下記の件について、' + s1, ''];
       if (v.item) L.push('・案件: ' + v.item);
       L.push('・請求日: ' + fmtJa(v.t), '・ご請求額: ' + amt, '・お支払い期日: ' + due, '');
       ask.forEach(function (a) { L.push(a); });
@@ -547,8 +574,6 @@ var UIC = (function () {
     }
     return out;
   }
-  var FORBIDDEN = ['未入金', '督促', '催促', '滞納', '延滞', '遅延', '至急', '必ず', '直ちに', 'ご了承', '法的', '損害', '弁護士', '内容証明', '回収', '取り立て', '債権', '払っていません', '支払いが遅れ', '入金がありません', 'お支払いがない場合'];
-  function forbiddenIn(text) { return FORBIDDEN.filter(function (w) { return text.indexOf(w) >= 0; }); }
 
   function copyListText(cl, baseT) {
     var rows = [];
@@ -585,28 +610,30 @@ var UIC = (function () {
       '2026/10/09,ヒナタコウボウ,"54,780"',
       '10/1,サンプル タロウ,"12,000"'].join('\n');
   }
-  return { parseTable: parseTable, parseDate: parseDate, parseAmount: parseAmount, looksDate: looksDate, looksAmount: looksAmount, detectInvoice: detectInvoice, detectDeposit: detectDeposit, buildInvoices: buildInvoices, buildDeposits: buildDeposits, match: match, classify: classify, makeMessage: makeMessage, stage: stage, forbiddenIn: forbiddenIn, copyListText: copyListText, yen: yen, fmtJa: fmtJa, fmtSlash: fmtSlash, fmtShort: fmtShort, sampleInvoice: sampleInvoice, sampleDeposit: sampleDeposit, nameKey: nameKey, MAX_INV: MAX_INV, MAX_DEP: MAX_DEP, DAY: DAY };
+  return { parseTable: parseTable, parseDate: parseDate, parseAmount: parseAmount, looksDate: looksDate, looksAmount: looksAmount, detectInvoice: detectInvoice, detectDeposit: detectDeposit, buildInvoices: buildInvoices, buildDeposits: buildDeposits, match: match, classify: classify, makeMessage: makeMessage, stage: stage, copyListText: copyListText, yen: yen, fmtJa: fmtJa, fmtSlash: fmtSlash, fmtShort: fmtShort, sampleInvoice: sampleInvoice, sampleDeposit: sampleDeposit, nameKey: nameKey, MAX_INV: MAX_INV, MAX_DEP: MAX_DEP, DAY: DAY };
 })();
 </script>
 <script id="ui">
 (function () {
   'use strict';
   var U = UIC, $ = function (id) { return document.getElementById(id); };
-  var st = { inv: null, dep: null, cl: null, manual: {}, open: -1, loaded: false };
+  function fresh() { return { inv: null, dep: null, cl: null, manual: {}, open: -1, loaded: false, resetNote: false, bi: null, bd: null, mr: null }; }
+  var st = fresh(), sampled = false, stale = false;
   var SAMPLE_BASE = '2026-10-12';
   function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
   function todayStr() { var d = new Date(); var p = function (n) { return (n < 10 ? '0' : '') + n; }; return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()); }
   function baseT() { var m = String($('baseDate').value || '').match(/^(\d{4})-(\d{2})-(\d{2})$/); if (!m) { var t = todayStr().split('-'); return Date.UTC(+t[0], +t[1] - 1, +t[2]); } return Date.UTC(+m[1], +m[2] - 1, +m[3]); }
+  function updateBaseNote() { var n = $('baseNote'); n.hidden = $('baseDate').value === todayStr(); n.textContent = sampled ? 'サンプルの基準日（2026年10月12日）が入っています。超過日数は、この基準日で数えます。' : '基準日が今日と違います。超過日数は、この基準日で数えます。'; }
   function setStatus(lines, err) { var s = $('status'); s.textContent = ''; s.hidden = !(lines && lines.length); (lines || []).forEach(function (l) { s.appendChild(el('p', null, l)); }); s.classList.toggle('err', !!err); }
   function showRes(on) { $('res').hidden = !on; $('resEmpty').hidden = on; }
-  function reset() { st = { inv: null, dep: null, cl: null, manual: {}, open: -1, loaded: false }; ['lOver', 'lRev', 'lSoon', 'lPaid', 'lFree', 'badInv', 'badDep'].forEach(function (id) { $(id).textContent = ''; }); showRes(false); $('colBox').hidden = true; $('manualBox').hidden = true; }
+  function reset() { st = fresh(); stale = false; $('staleNote').hidden = true; ['lOver', 'lRev', 'lSoon', 'lPaid', 'lFree', 'badInv', 'badDep'].forEach(function (id) { $(id).textContent = ''; }); showRes(false); $('colBox').hidden = true; $('manualBox').hidden = true; }
 
   var SEL = { inv: [['cInvDate', 'date'], ['cInvName', 'name'], ['cInvAmt', 'amt'], ['cInvDue', 'due'], ['cInvItem', 'item'], ['cInvPayer', 'payer']], dep: [['cDepDate', 'date'], ['cDepName', 'name'], ['cDepAmt', 'amt']] };
   function fillSelects(kind) {
     var o = st[kind], optional = { item: 1, payer: 1 };
     SEL[kind].forEach(function (p) {
       var s = $(p[0]); s.textContent = '';
-      var o0 = el('option', null, optional[p[1]] || p[1] === 'name' && kind === 'dep' ? '（なし）' : '（選んでください）'); o0.value = '-1'; s.appendChild(o0);
+      var o0 = el('option', null, optional[p[1]] || (p[1] === 'name' && kind === 'dep') ? '（なし）' : '（選んでください）'); o0.value = '-1'; s.appendChild(o0);
       for (var j = 0; j < o.det.ncol; j++) { var h = o.det.headerRow && o.det.headerRow[j] ? ' ' + String(o.det.headerRow[j]).slice(0, 12) : ''; var e = el('option', null, '列' + (j + 1) + h); e.value = String(j); s.appendChild(e); }
       s.value = String(o.cols[p[1]]);
     });
@@ -619,8 +646,9 @@ var UIC = (function () {
   }
   // 貼られた文字から読み直して、列を判定して、照合する
   function loadAll() {
+    var had = Object.keys(st.manual || {}).length;
     var it = $('invPaste').value, dt = $('depPaste').value;
-    st.manual = {}; st.open = -1;
+    reset(); st.resetNote = had > 0; updateBaseNote();
     if (String(it).length > 2000000 || String(dt).length > 2000000) { setStatus(['文字が多すぎます（200万字まで）。期間を分けて入れてください。'], true); return; }
     if (!String(it).trim()) { setStatus(['請求の一覧が空です。文字を貼るか、CSVファイルを選んでください。'], true); return; }
     if (!String(dt).trim()) { setStatus(['入金明細が空です。文字を貼るか、CSVファイルを選んでください。'], true); return; }
@@ -633,20 +661,27 @@ var UIC = (function () {
   }
   function run() {
     var bT = baseT(), tol = parseInt($('tol').value, 10) || 0;
+    var rn = st.resetNote; st.resetNote = false; stale = false; $('staleNote').hidden = true; updateBaseNote();
+    var pre = rn ? ['自分で付けた変更（入金済みなど）はリセットしました。'] : [];
     var bi = U.buildInvoices(st.inv.rows, st.inv.det, st.inv.cols);
     var bd = U.buildDeposits(st.dep.rows, st.dep.det, st.dep.cols, bT);
     st.bi = bi; st.bd = bd;
     var li = '請求 ' + bi.ok.length + '件を読み込み・読み取れなかった行 ' + bi.bad.length + '件' + (bi.over ? '・' + U.MAX_INV + '行を超えた ' + bi.over + '行は読んでいません' : '');
     var ld = '入金明細 ' + bd.ok.length + '件を読み込み・入金ではない行 ' + bd.notDep + '件（出金・空欄・0円。件数だけ表示します）・読み取れなかった行 ' + bd.bad.length + '件' + (bd.over ? '・' + U.MAX_DEP + '行を超えた ' + bd.over + '行は読んでいません' : '');
     renderBad();
-    if (!bi.ok.length) { setStatus([li, '読み取れる請求の行がありません。「列の確認」で列を選び直すか、請求日・取引先・請求額・支払期日の4列があるか確かめてください。', ld], true); $('colBox').open = true; showRes(true); showMain(false); return; }
+    if (!bi.ok.length) { setStatus(pre.concat([li, '読み取れる請求の行がありません。「列の確認」で列を選び直すか、請求日・取引先・請求額・支払期日の4列があるか確かめてください。', ld]), true); $('colBox').open = true; showRes(true); showMain(false); return; }
+    var dc = st.dep.cols;
+    if (dc.date < 0 || dc.amt < 0) {
+      setStatus(pre.concat([li, ld, '入金明細の日付か金額の列を決められませんでした' + (dc.ambiguousAmt ? '（数字の列が複数あります。出金や残高の列を入金と取り違えないよう、自動では選びません）' : '') + '。「列の確認」で入金の列を選んでください。']), true);
+      $('colBox').open = true; showRes(true); showMain(false); return;
+    }
     var warn = [];
     if (!bd.ok.length) warn.push('入金として読み取れた行が0件です。入金明細の貼り方と「列の確認」を確かめてください（このままだと、すべての請求が入金が見当たらない側に出ます）。');
-    setStatus([li, ld].concat(warn), warn.length > 0);
+    setStatus(pre.concat([li, ld], warn), warn.length > 0);
     st.mr = U.match(bi.ok, bd.ok, tol, bT); st.loaded = true;
     showRes(true); showMain(true); render();
   }
-  function showMain(on) { ['band', 'copyRow'].forEach(function (id) { $(id).hidden = !on; }); document.querySelector('.band + .hint').hidden = !on; if (!on) { ['secOver', 'secRev', 'secSoon', 'paidBox', 'freeBox'].forEach(function (id) { $(id).hidden = true; }); $('noneMsg').hidden = true; } }
+  function showMain(on) { ['band', 'copyRow'].forEach(function (id) { $(id).hidden = !on; }); document.querySelector('.band + .hint').hidden = !on; if (!on) { ['secOver', 'secRev', 'secSoon', 'paidBox', 'freeBox'].forEach(function (id) { $(id).hidden = true; }); $('noneMsg').hidden = true; $('depBadNote').hidden = true; } }
   function renderBad() {
     var bi = st.bi, bd = st.bd, total = bi.bad.length + bd.bad.length;
     $('badBox').hidden = !total; $('badSum').textContent = '読み取れなかった行 ' + total + '件（請求 ' + bi.bad.length + '件・入金明細 ' + bd.bad.length + '件）';
@@ -657,31 +692,34 @@ var UIC = (function () {
   function badge(txt, cls) { return el('span', cls || null, txt); }
   function depLine(d, bT) { return '入金: ' + U.fmtShort(d.t, bT) + ' ' + (d.name ? d.name + ' ' : '') + U.yen(d.amount); }
   function rowEl(it) {
-    var bT = baseT(), v = it.inv, deps = st.bd.ok;
+    var bT = baseT(), v = it.inv, deps = st.bd.ok, r = it.r;
     var li = el('li', 'it' + (it.bucket === 'overdue' ? ' hot' : ''));
     li.appendChild(el('div', 'nm', v.name));
     var amt = el('div', 'amt'); var s1 = el('span'); s1.appendChild(el('b', null, U.yen(v.amount))); var s2 = el('span', null, '期日 ' + U.fmtShort(v.due, bT)); amt.appendChild(s1); amt.appendChild(s2); li.appendChild(amt);
     var bdg = el('div', 'bdg');
     if (it.bucket === 'overdue') { bdg.appendChild(badge(it.days + '日超過', 'ann')); bdg.appendChild(badge('入金が見当たらない')); }
     else if (it.bucket === 'soon') { bdg.appendChild(badge(it.days === 0 ? '今日が期日' : 'あと' + it.days + '日', 'ann')); bdg.appendChild(badge('入金が見当たらない')); }
-    else if (it.bucket === 'review') { bdg.appendChild(badge('要確認', 'ann')); if (it.r.st === 'diff') bdg.appendChild(badge('差額あり')); }
+    else if (it.bucket === 'review') { bdg.appendChild(badge('要確認', 'ann')); if (r.st === 'diff') bdg.appendChild(badge('差額あり')); }
     else { bdg.appendChild(badge('入金あり', 'ann')); }
     if (it.man) bdg.appendChild(badge('自分で変更'));
     li.appendChild(bdg);
     var notes = [];
-    if (it.bucket === 'paid' && !it.man) { notes.push(depLine(deps[it.r.dep], bT)); if (it.r.mismatch) notes.push('名義は一致していません（金額が同じ入金です）'); }
+    if (it.bucket === 'paid' && !it.man) { notes.push(depLine(deps[r.dep], bT)); if (r.mismatch) notes.push('名義は一致していません（金額が同じ入金です）'); }
     if (it.bucket === 'paid' && it.man) notes.push('自分で「入金済み」にしました');
-    if (it.bucket === 'review' && it.r.st === 'diff') notes.push(depLine(deps[it.r.dep], bT) + '（請求額との差 ' + U.yen(it.r.diff) + '。振込手数料が引かれた可能性があります）');
-    if (it.bucket === 'review' && it.r.st === 'review') {
-      if (it.r.why === 'same') notes.push('同じ金額の請求が' + it.r.k + '件あり、入金は' + it.r.m + '件です。どの請求の分か決められません');
-      else notes.push('差額で合う入金が複数あります（振込手数料の引かれ分の範囲）');
-      notes.push('候補の入金: ' + it.r.cands.map(function (b) { return U.fmtShort(deps[b].t, bT) + ' ' + (deps[b].name ? deps[b].name + ' ' : '') + U.yen(deps[b].amount); }).join('／'));
+    if (it.st !== 'paid') {
+      if (r.st === 'diff' && !it.lost) notes.push(depLine(deps[r.dep], bT) + '（請求額との差 ' + U.yen(r.diff) + '。振込手数料が引かれた可能性があります）');
+      if (r.st === 'review' && !it.lost) {
+        if (r.why === 'same') notes.push('同じ金額の請求が' + r.k + '件あり、入金は' + r.m + '件です。どの請求の分か決められません');
+        else notes.push('差額で合う入金が複数あります（振込手数料の引かれ分の範囲）');
+        if (it.cands.length) notes.push('候補の入金: ' + it.cands.map(function (b) { return U.fmtShort(deps[b].t, bT) + ' ' + (deps[b].name ? deps[b].name + ' ' : '') + U.yen(deps[b].amount); }).join('／'));
+      }
+      if (it.lost) notes.push('候補だった入金は、ほかの請求を入金済みにしたため外れました');
     }
     if (it.bucket === 'soon') notes.push('まだ期日前です');
-    if (it.bucket === 'overdue' && it.man === 'missing') notes.push('自分で「まだ入っていない」にしました');
+    if ((it.bucket === 'overdue' || it.bucket === 'soon') && it.man === 'missing') notes.push('自分で「まだ入っていない」にしました');
     notes.forEach(function (n) { li.appendChild(el('p', 'note', n)); });
     var acts = el('div', 'acts');
-    var mk = function (label, cls, fn, aria) { var b = el('button', cls, label); b.type = 'button'; b.setAttribute('aria-label', label + ': ' + v.name); b.addEventListener('click', fn); acts.appendChild(b); return b; };
+    var mk = function (label, cls, fn) { var b = el('button', cls, label); b.type = 'button'; b.setAttribute('aria-label', label + ': ' + v.name); b.addEventListener('click', fn); acts.appendChild(b); return b; };
     if (it.bucket === 'overdue') mk(st.open === it.i ? '連絡文を閉じる' : '連絡文をつくる', 'ghost', function () { st.open = st.open === it.i ? -1 : it.i; render(); });
     if (it.bucket === 'review') mk('まだ入っていない扱いにする', 'ghost', function () { st.manual[it.i] = 'missing'; render(); });
     if (it.bucket !== 'paid') mk('入金済みにする', 'ghost', function () { st.manual[it.i] = 'paid'; if (st.open === it.i) st.open = -1; render(); });
@@ -725,6 +763,7 @@ var UIC = (function () {
     $('paidBox').hidden = !cl.paid.length; $('paidSum').textContent = '入金あり ' + cl.paid.length + '件';
     var fl = $('lFree'); fl.textContent = ''; cl.free.forEach(function (f) { var d = st.bd.ok[f.dep]; var li = el('li', null, U.fmtShort(d.t, bT) + '　' + (d.name ? d.name + '　' : '') + U.yen(d.amount)); li.appendChild(el('span', 'why', f.reason)); fl.appendChild(li); });
     $('freeBox').hidden = !cl.free.length; $('freeSum').textContent = 'どの請求にも結びつかなかった入金 ' + cl.free.length + '件';
+    var nb = $('depBadNote'); nb.hidden = !st.bd.bad.length; nb.textContent = '入金明細に読み取れなかった行が' + st.bd.bad.length + '件あります。その中に入金があるかもしれません（上の「読み取れなかった行」で確認できます）。';
     // 帯
     $('bOverN').textContent = cl.over.length + '件'; $('bOverA').textContent = U.yen(cl.overSum);
     $('bSoonN').textContent = cl.soon.length + '件'; $('bSoonA').textContent = U.yen(cl.soonSum);
@@ -758,30 +797,42 @@ var UIC = (function () {
       r.readAsArrayBuffer(f);
     });
   }
+  // サンプルの入力が残っているときは、実データと混ざらないよう、両方の欄と基準日を戻す
+  function dropSample() { if (!sampled) return false; sampled = false; $('invPaste').value = ''; $('depPaste').value = ''; $('baseDate').value = todayStr(); updateBaseNote(); return true; }
   function onFile(inputId, areaId, label) {
     $(inputId).addEventListener('change', function () {
       var f = ($(inputId).files || [])[0]; $(inputId).value = '';
       if (!f) return;
       setStatus([label + 'を読み込み中…'], false);
       decodeFile(f).then(function (t) {
+        var dropped = dropSample();
         $(areaId).value = t;
         if ($('invPaste').value.trim() && $('depPaste').value.trim()) loadAll();
-        else setStatus([label + 'を読み込みました。もう一方も入れて「照合する」を押してください。'], false);
+        else setStatus([(dropped ? 'サンプルの入力を外しました。' : '') + label + 'を読み込みました。もう一方も入れて「照合する」を押してください。'], false);
       }, function (why) { setStatus([label + ': ' + why + '。読み込んでいません。'], true); });
     });
   }
+  function resetManual() { var had = Object.keys(st.manual || {}).length; st.manual = {}; st.open = -1; st.resetNote = had > 0; }
+  function settingsChanged() { if (!st.inv) return; if (stale) { loadAll(); return; } resetManual(); run(); }
 
   $('baseDate').value = todayStr();
   $('go').addEventListener('click', loadAll);
-  $('sample').addEventListener('click', function () { $('invPaste').value = U.sampleInvoice(); $('depPaste').value = U.sampleDeposit(); $('baseDate').value = SAMPLE_BASE; loadAll(); });
-  $('clear').addEventListener('click', function () { $('invPaste').value = ''; $('depPaste').value = ''; $('invFile').value = ''; $('depFile').value = ''; reset(); setStatus(null); });
-  SEL.inv.forEach(function (p) { $(p[0]).addEventListener('change', function () { st.inv.cols[p[1]] = parseInt($(p[0]).value, 10); st.manual = {}; st.open = -1; run(); }); });
-  SEL.dep.forEach(function (p) { $(p[0]).addEventListener('change', function () { st.dep.cols[p[1]] = parseInt($(p[0]).value, 10); st.manual = {}; st.open = -1; run(); }); });
-  ['baseDate', 'tol'].forEach(function (id) { $(id).addEventListener('change', function () { if (st.loaded || st.inv) { st.manual = {}; st.open = -1; run(); } }); });
-  ['media'].forEach(function (id) { $(id).addEventListener('change', function () { if (st.loaded) render(); }); });
+  $('sample').addEventListener('click', function () { $('invPaste').value = U.sampleInvoice(); $('depPaste').value = U.sampleDeposit(); $('baseDate').value = SAMPLE_BASE; sampled = true; loadAll(); });
+  $('clear').addEventListener('click', function () { $('invPaste').value = ''; $('depPaste').value = ''; $('invFile').value = ''; $('depFile').value = ''; sampled = false; $('baseDate').value = todayStr(); reset(); setStatus(null); updateBaseNote(); });
+  ['invPaste', 'depPaste'].forEach(function (id) {
+    $(id).addEventListener('input', function () {
+      if (sampled) { var other = id === 'invPaste' ? 'depPaste' : 'invPaste'; sampled = false; $(other).value = ''; $('baseDate').value = todayStr(); reset(); updateBaseNote(); setStatus(['サンプルの入力を外しました。もう一方も入れて「照合する」を押してください。'], false); return; }
+      if (st.loaded) { stale = true; $('staleNote').hidden = false; }
+    });
+  });
+  SEL.inv.forEach(function (p) { $(p[0]).addEventListener('change', function () { st.inv.cols[p[1]] = parseInt($(p[0]).value, 10); resetManual(); run(); }); });
+  SEL.dep.forEach(function (p) { $(p[0]).addEventListener('change', function () { st.dep.cols[p[1]] = parseInt($(p[0]).value, 10); resetManual(); run(); }); });
+  ['baseDate', 'tol'].forEach(function (id) { $(id).addEventListener('change', function () { updateBaseNote(); settingsChanged(); }); });
+  $('media').addEventListener('change', function () { if (st.loaded) render(); });
   $('sender').addEventListener('input', function () { if (st.loaded && st.open >= 0) render(); });
   $('copyList').addEventListener('click', copyList);
   onFile('invFile', 'invPaste', '請求の一覧'); onFile('depFile', 'depPaste', '入金明細');
+  updateBaseNote();
 })();
 </script>
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js"
